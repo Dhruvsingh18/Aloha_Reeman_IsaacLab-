@@ -1,0 +1,65 @@
+import argparse
+from isaaclab.app import AppLauncher
+
+# args
+parser = argparse.ArgumentParser()
+parser.add_argument("--num_envs", type=int, default=16)
+AppLauncher.add_app_launcher_args(parser)
+args_cli = parser.parse_args()
+
+# launch Omniverse
+app_launcher = AppLauncher(args_cli)
+simulation_app = app_launcher.app
+
+# now import heavy config files
+from scripts.reeman.reeman_env_cfg import TwoWheelEnvCfg
+
+import torch
+from isaaclab.envs import ManagerBasedRLEnv
+
+
+def main():
+
+    env_cfg = TwoWheelEnvCfg()
+
+    # correct location for num_envs
+    env_cfg.sim.num_envs = args_cli.num_envs
+
+    # correct sim device attrs
+    env_cfg.sim.device_type = args_cli.device
+    env_cfg.sim.use_gpu = True
+
+    # build environment
+    env = ManagerBasedRLEnv(cfg=env_cfg)
+
+    count = 0
+    while simulation_app.is_running():
+        with torch.inference_mode():
+
+            if count % 300 == 0:
+                print("-" * 60)
+                print("[INFO] Resetting environment")
+                env.reset()
+                count = 0
+
+            # correct bounded random actions
+            actions = torch.rand_like(env.action_manager.action) * 2 - 1
+
+            obs, reward, terminated, truncated, info = env.step(actions)
+
+            left_wheel_vel = obs["policy"][0][0].item()
+            right_wheel_vel = obs["policy"][0][1].item()
+            position = obs["policy"][0][2].numpy()  # x, y, z
+
+            print("Left wheel vel:", obs["policy"][0][0].item())
+            print("Right wheel vel:", obs["policy"][0][1].item())
+            print(f"Left Wheel vel: {left_wheel_vel:.3f}, Right wheel vel: {right_wheel_vel:.3f}")
+            print(f"Robot position: {position}")
+            count += 1
+
+    env.close()
+L vel
+
+if __name__ == "__main__":
+    main()
+    simulation_app.close()
